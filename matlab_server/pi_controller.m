@@ -59,22 +59,7 @@ k = 3;
 t = 1:n;
 x = 1:n;
 
-% While True: This Loop would work in an infinite manner if the plot of the
-% output is not needed. The plot restricts it from being infinite because
-% of two reasons:
-% 1. The plot needs a defined x-value on which it will plot, therefore this
-% needs to be a predefined constant value that cannot be exceeded.
-% 2. The plot requires persistent dynammic programming for keeping all
-% arrays values and displaying them. If no plot is needed, only 3 arrays 
-% with constant sizes can be defined an memory overriding with a dynammic 
-% programming approach could be used, making the system run in a seamless 
-% infinite way.
-
-% System Refreshes every 0.1 seconds
-
-while true_variable > 1
-
-    % Check Water Limit -----------------------
+% Check Water Limit Before Daily Execution -----------------------
 
     api_url = "http://localhost:2000/api/check-water-limit";
 
@@ -89,6 +74,21 @@ while true_variable > 1
         pause(3);
 
     end
+
+% While True: This Loop would work in an infinite manner if the plot of the
+% output is not needed. The plot restricts it from being infinite because
+% of two reasons:
+% 1. The plot needs a defined x-value on which it will plot, therefore this
+% needs to be a predefined constant value that cannot be exceeded.
+% 2. The plot requires persistent dynammic programming for keeping all
+% arrays values and displaying them. If no plot is needed, only 3 arrays 
+% with constant sizes can be defined an memory overriding with a dynammic 
+% programming approach could be used, making the system run in a seamless 
+% infinite way.
+
+% System Refreshes every 0.1 seconds
+
+while true_variable > 1
 
     % Distance in cm
     distance = readDistance(ultrasonic_sensor) * 100;
