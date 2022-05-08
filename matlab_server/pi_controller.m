@@ -3,6 +3,20 @@
 % IoT Water Valves
 % Matlab Server
 
+% ----- Main Configuration ---------------------------------
+
+% Create connection to Arduino Uno
+arduino_uno = arduino('COM6','Uno','libraries','Ultrasonic');
+
+% Create Sensor Instance
+ultrasonic_sensor = ultrasonic(arduino_uno,'D2','D3');
+
+% Variable for While True
+true_variable = 10;
+
+% Initial Water Limit (In Liters)
+water_limit = 0.5;
+
 % Predefined values
 clc;
 T = 0.1;
@@ -58,78 +72,97 @@ x = 1:n;
 
 % System Refreshes every 0.1 seconds
 
-water_limit = 0.3;
+while true_variable > 1
 
-while 10 > 1
+    % Check Water Limit -----------------------
 
-    c(k) = 0.04004 * m(k-1) + 0.0322 * m(k-2) + 1.4563 * c(k-1) - 0.522 * c(k-2);
-    e(k) = r(1) - c(k); % r(1) is r(k)
-    m(k) = 1/2 * ((2 * kp + ki * T) * e(k) + (ki * T - 2 * kp) * e(k-1)) + m(k-1);
+    api_url = "http://localhost:2000/api/check-water-limit";
 
-    str_data = num2str(c(k));
-    str_values = ' Liters / Minute';
-    str_print = append(str_data, str_values);
+    api_call = webread(api_url);
 
-    str_setpoint_is = 'Current Water Flow Set Point is: ';
-    str_setpoint = num2str(setpoint);
-    str_print_setpoint = append(str_setpoint_is, str_setpoint, str_values);
+    new_limit = str2double(api_call);
 
-    plot(x(1:k),c(1:k),'--b',t,r,'-r');
-    text(max(x(k)),max(c(k)),str_print);
-    text(max(k - 18),6,str_print_setpoint);
-    xline(k - 30);
-    yline(0);
-    xlim([k-40 k+20]);
-    ylim([-1 7]);
+    if ~eq(water_limit, new_limit)
 
-    drawnow;
+        fprintf('Water Limit has been changed from %f to %f.\n', water_limit,new_limit);
+        water_limit = new_limit;
+        pause(3);
 
-    % System Refreshing occurs every 0.1 seconds
-
-    pause(0.1);
-
-    % ---------- System Behavior ---------------
-
-    water_flow_output = c(k);
-
-    % If Water Flow Output has reached less than 10 mililiters per minute,
-    % system stops. This creates an event and alerts the user on the IoT
-    % Application that they have reached their daily maximum.
-
-    if(water_flow_output < 0.01)
-        break;
     end
 
-    % Consumed water in 0.1 seconds // Water Flow is measured in Liters /
-    % minute, therefore a simple 3 rule having 600 decimal seconds in a
-    % minute:
+    % Distance in cm
+    distance = readDistance(ultrasonic_sensor) * 100;
 
-    water_consumption = water_flow_output / 600;
+    % If distance is less than 10 cm detection occurs and Control System starts
 
-    % Relational water decrease
+    if(distance < 10)
 
-    water_decrease_ratio = water_consumption / water_limit; % If 1%, this holds 0.001 (not multiplied times 100)
+        disp(distance);
 
-    % Water Decrease
+        % --------------------- Control System Execution --------------------------
 
-    water_limit = water_limit - water_consumption;
+        c(k) = 0.04004 * m(k-1) + 0.0322 * m(k-2) + 1.4563 * c(k-1) - 0.522 * c(k-2);
+        e(k) = r(1) - c(k); % r(1) is r(k)
+        m(k) = 1/2 * ((2 * kp + ki * T) * e(k) + (ki * T - 2 * kp) * e(k-1)) + m(k-1);
+    
+        str_data = num2str(c(k));
+        str_values = ' Liters / Minute';
+        str_print = append(str_data, str_values);
+    
+        str_setpoint_is = 'Current Water Flow Set Point is: ';
+        str_setpoint = num2str(setpoint);
+        str_print_setpoint = append(str_setpoint_is, str_setpoint, str_values);
+    
+        plot(x(1:k),c(1:k),'--b',t,r,'-r');
+        text(max(x(k)),max(c(k)),str_print);
+        text(max(k - 18),6,str_print_setpoint);
+        xline(k - 30);
+        yline(0);
+        xlim([k-40 k+20]);
+        ylim([-1 7]);
+    
+        drawnow;
+    
+        % System Refreshing occurs every 0.1 seconds
+    
+        pause(0.1);
+    
+        % ---------- System Behavior ---------------
+    
+        water_flow_output = c(k);
+    
+        % If Water Flow Output has reached less than 10 mililiters per minute,
+        % system stops. This creates an event and alerts the user on the IoT
+        % Application that they have reached their daily maximum.
+    
+        if(water_flow_output < 0.01)
+            break;
+        end
+    
+        % Consumed water in 0.1 seconds // Water Flow is measured in Liters /
+        % minute, therefore a simple 3 rule having 600 decimal seconds in a
+        % minute:
+    
+        water_consumption = water_flow_output / 600;
+    
+        % Relational water decrease
+    
+        water_decrease_ratio = water_consumption / water_limit; % If 1%, this holds 0.001 (not multiplied times 100)
+    
+        % Water Decrease
+    
+        water_limit = water_limit - water_consumption;
+    
+        % New Water Flow Setpoint relative to water decrease
+    
+        setpoint = setpoint - (setpoint * water_decrease_ratio);
+    
+        r = zeros(n,1) + setpoint; % New Water Flow Set Point
+    
+        % K increase for next iteration
+    
+        k = k + 1;
 
-    % New Water Flow Setpoint relative to water decrease
-
-    setpoint = setpoint - (setpoint * water_decrease_ratio);
-
-    r = zeros(n,1) + setpoint; % New Water Flow Set Point
-
-    % K increase for next iteration
-
-    k = k + 1;
-
+    end
+    
 end
-
-
-
-
-
-
-
-
