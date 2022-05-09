@@ -22,43 +22,15 @@ clc;
 T = 0.1;
 n = 1000000; % Predefined Value for Plot in X-axis
 
-% Initial Water Flow of 5 Liters per Minute
-
-setpoint = 5;
-
-r = zeros(n,1) + setpoint; % Starts at 5 Liters per minute
-
-% Tuning Values
-
-kp = 0.5;
-ki = 1;
-
-% Initial Values for non Zero Indexing (Only c(k) and e(k))
-
-c(1) = 0;
-e(1) = r(1) - c(1); % r(1) is r(1)
-m(1) = 1/2 * ((2 * kp + ki * T) * e(1));
-
-c(2) = 0.04004 * m(1) + 1.4563 * c(1);
-e(2) = r(1) - c(2); % r(1) is r(2)
-m(2) = 1/2 * ((2 * kp + ki * T) * e(2) + (ki * T - 2 * kp) * e(1)) + m(1);
-
 % -------------------------------------------------
 
-% 1 - PI with Bilinear Transformation
+% API URL for alerting user that system has finished
 
-% Initial Values for m(k)
+api_url_finished = "http://localhost:2000/api/stop-system";
 
-% Loop
+while true_variable > 1
 
-
-figure;
-
-k = 3;
-t = 1:n;
-x = 1:n;
-
-% Check Water Limit Before Daily Execution -----------------------
+    % Check Water Limit Before Daily Execution -----------------------
 
     api_url = "http://localhost:2000/api/check-water-limit";
 
@@ -74,140 +46,180 @@ x = 1:n;
 
     end
 
-% While True: This Loop would work in an infinite manner if the plot of the
-% output is not needed. The plot restricts it from being infinite because
-% of two reasons:
-% 1. The plot needs a defined x-value on which it will plot, therefore this
-% needs to be a predefined constant value that cannot be exceeded.
-% 2. The plot requires persistent dynammic programming for keeping all
-% arrays values and displaying them. If no plot is needed, only 3 arrays 
-% with constant sizes can be defined an memory overriding with a dynammic 
-% programming approach could be used, making the system run in a seamless 
-% infinite way.
+    % Check system state for execution start -----------------------------
 
-% System Refreshes every 0.1 seconds
+    check_system_running = "http://localhost:2000/api/check-system-running";
+    response_running = webread(check_system_running);
+    if(response_running == "1")
+        
+        % Initial Variables Configuration ----------------------------------------
 
-% API URL for alerting user that system has finished
-
-api_url_finished = "http://localhost:2000/api/stop-system";
-
-while true_variable > 1
-
-    % Distance in cm
-    distance = readDistance(ultrasonic_sensor) * 100;
-
-    % If distance is less than 10 cm detection occurs and Control System starts
-
-    if(distance < 10)
-
-        disp(distance);
-
-        % --------------------- Control System Execution --------------------------
-
-        c(k) = 0.04004 * m(k-1) + 0.0322 * m(k-2) + 1.4563 * c(k-1) - 0.522 * c(k-2);
-        e(k) = r(1) - c(k); % r(1) is r(k)
-        m(k) = 1/2 * ((2 * kp + ki * T) * e(k) + (ki * T - 2 * kp) * e(k-1)) + m(k-1);
-    
-        str_data = num2str(c(k));
-        str_values = ' Liters / Minute';
-        str_print = append(str_data, str_values);
-    
-        str_setpoint_is = 'Current Water Flow Set Point is: ';
-        str_setpoint = num2str(setpoint);
-        str_print_setpoint = append(str_setpoint_is, str_setpoint, str_values);
-    
-        figure(1);
-        plot(x(1:k),c(1:k),'--b',t,r,'-r');
-        xlabel('Iterations');
-        ylabel('Water Flow (L / m)');
-        xline(k - 30);
-        yline(0);
-        legend({'Water Flow Output','Setpoint','X axis', 'Y axis'},'Location','southeast');
-        text(max(x(k)),max(c(k)),str_print);
-        text(max(k - 18),6,str_print_setpoint);
-        title('System Response');
-        xlim([k-40 k+20]);
-        ylim([-1 7]);
-
-        % Un-comment for Error and Manipulation Graphs
-        %{
-        figure(2);
-        subplot(2,1,1),plot(x(1:k),e(1:k),'-r');
-        xlabel('Iterations');
-        ylabel('Error Signal');
-        legend({'Error Signal','X axis', 'Y axis'},'Location','southeast');
-        text(max(x(k)),max(e(k)),num2str(e(k)));
-        title('Error Signal');
-        xline(k - 30);
-        yline(0);
-        xlim([k-40 k+20]);
-        ylim([-1 7]);
-
-        subplot(2,1,2),plot(x(1:k),m(1:k),'-g');
-        xlabel('Iterations');
-        ylabel('Controller Signal');
-        legend({'Controller Signal','X axis', 'Y axis'},'Location','southeast');
-        text(max(x(k)),max(m(k)),num2str(m(k)));
-        title('Controller Signal');
-        xline(k - 30);
-        yline(0);
-        xlim([k-40 k+20]);
-        ylim([-1 7]);
-        %}
-
-        drawnow;
-    
-        % System Refreshing occurs every 0.1 seconds
-    
-        pause(0.01);
-    
-        % ---------- System Behavior ---------------
-    
-        water_flow_output = c(k);
-    
-        % If Water Flow Output has reached less than 50 mililiters per minute,
-        % system stops. This creates an event and alerts the user on the IoT
-        % Application that they have reached their daily maximum.
-    
-        if(water_flow_output < 0.05)
-            response_finished_complete = webread(api_url_finished);
-            break;
-        end
-    
-        % Consumed water in 0.1 seconds // Water Flow is measured in Liters /
-        % minute, therefore a simple 3 rule having 600 decimal seconds in a
-        % minute:
-    
-        water_consumption = water_flow_output / 600;
-    
-        % Relational water decrease
-    
-        water_decrease_ratio = water_consumption / water_limit; % If 1%, this holds 0.001 (not multiplied times 100)
-    
-        % Water Decrease
-    
-        water_limit = water_limit - water_consumption;
-    
-        % New Water Flow Setpoint relative to water decrease
-    
-        setpoint = setpoint - (setpoint * water_decrease_ratio);
-    
-        r = zeros(n,1) + setpoint; % New Water Flow Set Point
-
-        % Send Total Number of Liters Left to IoT Web Server
+        % Set Current Limit
 
         base_api_url_liters = "http://localhost:2000/api/set-remaining-liters/";
-
+        
         url_liters = num2str(water_limit);
-
+        
         full_api_url_liters = append(base_api_url_liters, url_liters);
-
+    
         response_liters = webread(full_api_url_liters);
-    
-        % K increase for next iteration
-    
-        k = k + 1;
 
+        % Initial Water Flow of 5 Liters per Minute
+
+        setpoint = 5;
+
+        r = zeros(n,1) + setpoint; % Starts at 5 Liters per minute
+
+        % Tuning Values
+
+        kp = 0.5;
+        ki = 1;
+
+        % Initial Values for non Zero Indexing (Only c(k) and e(k))
+        % Clean arrays
+
+        c = [];
+        e = [];
+        m = [];
+
+        c(1) = 0;
+        e(1) = r(1) - c(1); % r(1) is r(1)
+        m(1) = 1/2 * ((2 * kp + ki * T) * e(1));
+        
+        c(2) = 0.04004 * m(1) + 1.4563 * c(1);
+        e(2) = r(1) - c(2); % r(1) is r(2)
+        m(2) = 1/2 * ((2 * kp + ki * T) * e(2) + (ki * T - 2 * kp) * e(1)) + m(1);
+
+        k = 3;
+        t = 1:n;
+        x = 1:n;
+        
+        while true_variable > 1
+
+            % Check if user has stopped the system
+            response_running_stopped = webread(check_system_running);
+            if(response_running_stopped == "0")
+                break
+            end
+
+            % Distance in cm
+            distance = readDistance(ultrasonic_sensor) * 100;
+        
+            % If distance is less than 10 cm detection occurs and Control System starts
+        
+            if(distance < 10)
+        
+                disp(distance);
+        
+                % --------------------- Control System Execution --------------------------
+        
+                c(k) = 0.04004 * m(k-1) + 0.0322 * m(k-2) + 1.4563 * c(k-1) - 0.522 * c(k-2);
+                e(k) = r(1) - c(k); % r(1) is r(k)
+                m(k) = 1/2 * ((2 * kp + ki * T) * e(k) + (ki * T - 2 * kp) * e(k-1)) + m(k-1);
+            
+                str_data = num2str(c(k));
+                str_values = ' Liters / Minute';
+                str_print = append(str_data, str_values);
+            
+                str_setpoint_is = 'Current Water Flow Set Point is: ';
+                str_setpoint = num2str(setpoint);
+                str_print_setpoint = append(str_setpoint_is, str_setpoint, str_values);
+            
+                figure(1);
+                plot(x(1:k),c(1:k),'--b',t,r,'-r');
+                xlabel('Iterations');
+                ylabel('Water Flow (L / m)');
+                xline(k - 30);
+                yline(0);
+                legend({'Water Flow Output','Setpoint','X axis', 'Y axis'},'Location','southeast');
+                text(max(x(k)),max(c(k)),str_print);
+                text(max(k - 18),6,str_print_setpoint);
+                title('System Response');
+                xlim([k-40 k+20]);
+                ylim([-1 7]);
+        
+                % Un-comment for Error and Manipulation Graphs
+                %{
+                figure(2);
+                subplot(2,1,1),plot(x(1:k),e(1:k),'-r');
+                xlabel('Iterations');
+                ylabel('Error Signal');
+                legend({'Error Signal','X axis', 'Y axis'},'Location','southeast');
+                text(max(x(k)),max(e(k)),num2str(e(k)));
+                title('Error Signal');
+                xline(k - 30);
+                yline(0);
+                xlim([k-40 k+20]);
+                ylim([-1 7]);
+        
+                subplot(2,1,2),plot(x(1:k),m(1:k),'-g');
+                xlabel('Iterations');
+                ylabel('Controller Signal');
+                legend({'Controller Signal','X axis', 'Y axis'},'Location','southeast');
+                text(max(x(k)),max(m(k)),num2str(m(k)));
+                title('Controller Signal');
+                xline(k - 30);
+                yline(0);
+                xlim([k-40 k+20]);
+                ylim([-1 7]);
+                %}
+        
+                drawnow;
+            
+                % System Refreshing occurs every 0.1 seconds
+            
+                pause(0.01);
+            
+                % ---------- System Behavior ---------------
+            
+                water_flow_output = c(k);
+            
+                % If Water Flow Output has reached less than 50 mililiters per minute,
+                % system stops. This creates an event and alerts the user on the IoT
+                % Application that they have reached their daily maximum.
+            
+                if(water_flow_output < 0.05)
+                    response_finished_complete = webread(api_url_finished);
+                    break;
+                end
+            
+                % Consumed water in 0.1 seconds // Water Flow is measured in Liters /
+                % minute, therefore a simple 3 rule having 600 decimal seconds in a
+                % minute:
+            
+                water_consumption = water_flow_output / 600;
+            
+                % Relational water decrease
+            
+                water_decrease_ratio = water_consumption / water_limit; % If 1%, this holds 0.001 (not multiplied times 100)
+            
+                % Water Decrease
+            
+                water_limit = water_limit - water_consumption;
+            
+                % New Water Flow Setpoint relative to water decrease
+            
+                setpoint = setpoint - (setpoint * water_decrease_ratio);
+            
+                r = zeros(n,1) + setpoint; % New Water Flow Set Point
+        
+                % Send Total Number of Liters Left to IoT Web Server
+        
+                base_api_url_liters = "http://localhost:2000/api/set-remaining-liters/";
+        
+                url_liters = num2str(water_limit);
+        
+                full_api_url_liters = append(base_api_url_liters, url_liters);
+        
+                response_liters = webread(full_api_url_liters);
+            
+                % K increase for next iteration
+            
+                k = k + 1;
+        
+            end
+        end
     end
-    
 end
+
+

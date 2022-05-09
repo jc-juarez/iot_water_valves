@@ -5,7 +5,7 @@
 
 import sqlite3
 import os
-import pandas as pd
+import requests
 
 def update_water_limit(limit):
 
@@ -20,3 +20,14 @@ def update_water_limit(limit):
     cursor.execute(data_query)
 
     connection.commit()
+
+def start_system():
+    requests.get('http://localhost:2000/api/start-system')
+
+def stop_system():
+    requests.get('http://localhost:2000/api/stop-system')
+
+def set_current_water_limit(liters):
+    liters = str(liters)
+    print("here" + liters)
+    requests.get('http://localhost:2000/api/set-current-liters/{0}'.format(liters))
