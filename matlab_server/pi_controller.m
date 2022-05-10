@@ -168,7 +168,7 @@ while true_variable > 1
             
                 % System Refreshing occurs every 0.1 seconds
             
-                pause(0.01);
+                pause(0.1);
             
                 % ---------- System Behavior ---------------
             
