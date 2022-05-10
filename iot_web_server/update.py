@@ -29,5 +29,4 @@ def stop_system():
 
 def set_current_water_limit(liters):
     liters = str(liters)
-    print("here" + liters)
     requests.get('http://localhost:2000/api/set-current-liters/{0}'.format(liters))
