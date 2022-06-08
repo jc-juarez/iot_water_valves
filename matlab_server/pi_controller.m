@@ -5,8 +5,12 @@
 
 % ----- Main Configuration ---------------------------------
 
+clear all;
+clc;
+
 % Create connection to Arduino Uno
 arduino_uno = arduino('COM6','Uno','libraries','Ultrasonic');
+%% 
 
 % Create Sensor Instance
 ultrasonic_sensor = ultrasonic(arduino_uno,'D2','D3');
@@ -33,8 +37,10 @@ while true_variable > 1
     % Check Water Limit Before Daily Execution -----------------------
 
     api_url = "http://localhost:2000/api/check-water-limit";
+%% 
 
     api_call = webread(api_url);
+%% 
 
     new_limit = str2double(api_call);
 
@@ -72,11 +78,13 @@ while true_variable > 1
 
         % Tuning Values
 
-        kp = 0.5;
-        ki = 1;
+        kp = 10;
+        ki = 0.07;
 
         % Initial Values for non Zero Indexing (Only c(k) and e(k))
         % Clean arrays
+
+        % Using a PLant Process specifically for a Water Flow System
 
         c = [];
         e = [];
@@ -86,7 +94,7 @@ while true_variable > 1
         e(1) = r(1) - c(1); % r(1) is r(1)
         m(1) = 1/2 * ((2 * kp + ki * T) * e(1));
         
-        c(2) = 0.04004 * m(1) + 1.4563 * c(1);
+        c(2) = 0.0392 * m(1) + 0.9842 * c(1);
         e(2) = r(1) - c(2); % r(1) is r(2)
         m(2) = 1/2 * ((2 * kp + ki * T) * e(2) + (ki * T - 2 * kp) * e(1)) + m(1);
 
@@ -113,7 +121,7 @@ while true_variable > 1
         
                 % --------------------- Control System Execution --------------------------
         
-                c(k) = 0.04004 * m(k-1) + 0.0322 * m(k-2) + 1.4563 * c(k-1) - 0.522 * c(k-2);
+                c(k) = 0.0392 * m(k-1) + 0.9842 * c(k-1);
                 e(k) = r(1) - c(k); % r(1) is r(k)
                 m(k) = 1/2 * ((2 * kp + ki * T) * e(k) + (ki * T - 2 * kp) * e(k-1)) + m(k-1);
             
@@ -221,5 +229,4 @@ while true_variable > 1
         end
     end
 end
-
 
